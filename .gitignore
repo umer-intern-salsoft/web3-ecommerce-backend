@@ -1,0 +1,6 @@
+*.txt
+.agents
+.claude
+.devin
+.cursor
+node_modules
