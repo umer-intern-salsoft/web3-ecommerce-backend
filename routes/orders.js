@@ -3,6 +3,7 @@ import { createPublicClient, http, formatEther, parseEther } from 'viem';
 import { sepolia } from 'viem/chains';
 import { prisma } from '../index.js';
 import { verifyToken } from '../middleware/auth.js';
+import { normalizeCartItems, verifyCheckoutQuoteToken } from '../services/ethPricing.js';
 
 const router = express.Router();
 
@@ -14,11 +15,21 @@ const publicClient = createPublicClient({
 
 router.post('/verify', verifyToken, async (req, res) => {
   try {
-    const { txHash, cartItems } = req.body; // cartItems: [{ productId, quantity }]
+    const { txHash, quoteToken } = req.body;
     const userId = req.user.id;
 
-    if (!txHash || !cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-      return res.status(400).json({ error: 'Transaction hash and valid cart items are required.' });
+    if (!txHash || !quoteToken) {
+      return res.status(400).json({ error: 'Transaction hash and checkout quote are required.' });
+    }
+
+    let quote;
+    try {
+      quote = verifyCheckoutQuoteToken(quoteToken);
+    } catch {
+      return res.status(400).json({ error: 'The checkout quote is invalid or expired. Please refresh it and try again.' });
+    }
+    if (quote.userId !== userId) {
+      return res.status(400).json({ error: 'This checkout quote belongs to another account.' });
     }
 
     // 1. Anti-Replay Check: Ensure txHash hasn't been used before
@@ -30,12 +41,13 @@ router.post('/verify', verifyToken, async (req, res) => {
     }
 
     // 2. Fetch products from DB & compute expected total independently
+    const cartItems = normalizeCartItems(quote.cartItems);
     const productIds = cartItems.map(item => item.productId);
     const dbProducts = await prisma.product.findMany({
       where: { id: { in: productIds } }
     });
 
-    let expectedTotalEth = 0;
+    let currentTotalUsd = 0;
     for (const item of cartItems) {
       const product = dbProducts.find(p => p.id === item.productId);
       if (!product) {
@@ -44,12 +56,15 @@ router.post('/verify', verifyToken, async (req, res) => {
       if (product.stockQuantity < item.quantity) {
         return res.status(400).json({ error: `Insufficient stock for ${product.name}.` });
       }
-      expectedTotalEth += product.priceEth * item.quantity;
+      currentTotalUsd += product.priceUsd * item.quantity;
     }
 
-    // Fix floating point rounding errors before converting to Wei
-    const expectedEthFormatted = expectedTotalEth.toFixed(6);
-    const expectedWei = parseEther(expectedEthFormatted);
+    currentTotalUsd = Math.round(currentTotalUsd * 100) / 100;
+    if (currentTotalUsd !== quote.totalUsd) {
+      return res.status(400).json({ error: 'Product pricing changed. Please refresh your checkout quote.' });
+    }
+
+    const expectedWei = parseEther(quote.totalEth);
 
     // 3. Fetch transaction receipt and transaction data from Sepolia RPC
     const [tx, receipt] = await Promise.all([
@@ -75,7 +90,7 @@ router.post('/verify', verifyToken, async (req, res) => {
     // 6. Verify value paid matches expected total (allow small precision tolerance if needed)
     if (tx.value < expectedWei) {
       return res.status(400).json({ 
-        error: `Insufficient payment amount. Paid: ${formatEther(tx.value)} ETH, Expected: ${expectedEthFormatted} ETH` 
+        error: `Insufficient payment amount. Paid: ${formatEther(tx.value)} ETH, Expected: ${quote.totalEth} ETH` 
       });
     }
 
@@ -85,7 +100,9 @@ router.post('/verify', verifyToken, async (req, res) => {
       const newOrder = await txPrisma.order.create({
         data: {
           userId,
-          totalEth: parseFloat(expectedEthFormatted),
+          totalUsd: quote.totalUsd,
+          totalEth: parseFloat(quote.totalEth),
+          ethUsdRate: quote.ethUsd,
           status: 'PAID',
           txHash
         }

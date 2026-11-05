@@ -22,7 +22,7 @@ model Product {
   name          String
   description   String
   imageUrl      String
-  priceEth      Float    // Storing as Float; we will format to Wei dynamically if needed
+  priceUsd      Float
   stockQuantity Int
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -32,7 +32,9 @@ model Order {
   id        String      @id @default(uuid())
   userId    String
   user      User        @relation(fields: [userId], references: [id])
+  totalUsd  Float
   totalEth  Float
+  ethUsdRate Float
   status    OrderStatus @default(PENDING)
   txHash    String?     @unique // Unique to prevent double-spend replay attacks
   createdAt DateTime    @default(now())
