@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import orderRoutes from './routes/orders.js';
 import pricingRoutes from './routes/pricing.js';
+import { ensureDefaultAdmin } from './services/ensureAdmin.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,15 +55,27 @@ apiRouter.get('/health', (req, res) => {
 app.use('/api', apiRouter);
 app.use('/web3-ecommerce-backend/api', apiRouter);
 
-// Start server
-if (process.env.NODE_ENV === 'customdev') {
-  https.createServer(loadSslCredentials(), app).listen(PORT, () => {
-    console.log(`Server running on https://localhost:${PORT}`);
-  });
-} else {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
+const startServer = async () => {
+  try {
+    await prisma.$connect();
+    await ensureDefaultAdmin(prisma);
+
+    if (process.env.NODE_ENV === 'customdev') {
+      https.createServer(loadSslCredentials(), app).listen(PORT, () => {
+        console.log(`Server running on https://localhost:${PORT}`);
+      });
+    } else {
+      app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    }
+  } catch (error) {
+    console.error('Backend startup failed:', error);
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+};
+
+startServer();
 
 export { app, prisma };
