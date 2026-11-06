@@ -1,8 +1,10 @@
 import express from 'express';
+import https from 'node:https';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
+import loadSslCredentials from './ssl.js';
 import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import orderRoutes from './routes/orders.js';
@@ -43,8 +45,14 @@ app.use('/api', apiRouter);
 app.use('/web3-ecommerce-backend/api', apiRouter);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV === 'customdev') {
+  https.createServer(loadSslCredentials(), app).listen(PORT, () => {
+    console.log(`Server running on https://localhost:${PORT}`);
+  });
+} else {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
 
 export { app, prisma };
