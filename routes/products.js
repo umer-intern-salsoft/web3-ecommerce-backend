@@ -10,6 +10,7 @@ router.get('/', async (req, res) => {
     const products = await prisma.product.findMany();
     res.json(products);
   } catch (error) {
+    console.error('Product list error:', error);
     res.status(500).json({ error: 'Failed to fetch products.' });
   }
 });
@@ -23,6 +24,7 @@ router.get('/:id', async (req, res) => {
     if (!product) return res.status(404).json({ error: 'Product not found.' });
     res.json(product);
   } catch (error) {
+    console.error('Product fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch product.' });
   }
 });
@@ -46,6 +48,7 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
     });
     res.status(201).json(product);
   } catch (error) {
+    console.error('Product creation error:', error);
     res.status(500).json({ error: 'Failed to create product.' });
   }
 });
@@ -69,6 +72,7 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
     });
     res.json(product);
   } catch (error) {
+    console.error('Product update error:', error);
     res.status(500).json({ error: 'Failed to update product.' });
   }
 });
@@ -83,6 +87,7 @@ router.put('/:id/stock', verifyToken, requireAdmin, async (req, res) => {
     });
     res.json(product);
   } catch (error) {
+    console.error('Stock update error:', error);
     res.status(500).json({ error: 'Failed to update stock.' });
   }
 });

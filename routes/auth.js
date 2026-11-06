@@ -23,6 +23,7 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(500).json({ error: 'Registration failed.' });
   }
 });
@@ -53,6 +54,7 @@ router.post('/login', async (req, res) => {
 
     res.json({ id: user.id, email: user.email, isAdmin: user.isAdmin });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed.' });
   }
 });
@@ -72,6 +74,7 @@ router.get('/me', verifyToken, async (req, res) => {
     });
     res.json(user);
   } catch (error) {
+    console.error('Profile fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch user profile.' });
   }
 });
