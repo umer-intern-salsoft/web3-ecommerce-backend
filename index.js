@@ -26,15 +26,21 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/pricing', pricingRoutes);
+const apiRouter = express.Router();
+
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/products', productRoutes);
+apiRouter.use('/orders', orderRoutes);
+apiRouter.use('/pricing', pricingRoutes);
 
 // Basic health check route
-app.get('/api/health', (req, res) => {
+apiRouter.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Web3 E-Commerce Backend running' });
 });
+
+// Local/direct access and path-based production deployment access.
+app.use('/api', apiRouter);
+app.use('/web3-ecommerce-backend/api', apiRouter);
 
 // Start server
 app.listen(PORT, () => {
